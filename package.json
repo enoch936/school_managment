@@ -1,0 +1,37 @@
+{
+  "name": "school-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enterprise multi-tenant School Management System (Next.js + NestJS + PostgreSQL)",
+  "license": "MIT",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./backend\" --filter \"./frontend\" dev",
+    "dev:backend": "pnpm --filter @sms/backend dev",
+    "dev:frontend": "pnpm --filter @sms/frontend dev",
+    "build": "pnpm --filter @sms/backend build && pnpm --filter @sms/frontend build",
+    "build:backend": "pnpm --filter @sms/backend build",
+    "build:frontend": "pnpm --filter @sms/frontend build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @sms/backend test:e2e",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "db:migrate": "pnpm --filter @sms/backend prisma:migrate",
+    "db:deploy": "pnpm --filter @sms/backend prisma:deploy",
+    "db:seed": "pnpm --filter @sms/backend prisma:seed",
+    "db:studio": "pnpm --filter @sms/backend prisma:studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  }
+}

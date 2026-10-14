@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sms/backend prisma:generate
+      - run: pnpm --filter @sms/backend typecheck
+      - run: pnpm --filter @sms/backend lint
+      - run: pnpm --filter @sms/backend test
+      - run: pnpm --filter @sms/backend build
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sms/frontend typecheck
+      - run: pnpm --filter @sms/frontend lint
+      - run: pnpm --filter @sms/frontend test
+      - run: pnpm --filter @sms/frontend build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000
