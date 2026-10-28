@@ -5,8 +5,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Plus, Trash2, CalendarRange, Clock, User, DoorOpen, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { staffApi } from '@/features/staff/api';
 import { timetablesApi } from '@/features/timetables/api';
-import type { School, ClassEntity, Subject, Teacher } from '@/lib/api/domain';
+import type { ClassEntity, Subject, Teacher } from '@/lib/api/domain';
 import { useAuthStore } from '@/lib/auth/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,18 +46,12 @@ export default function TimetablesPage() {
 
   const teachersQuery = useQuery({
     queryKey: ['teachers'],
-    queryFn: () => api.get<any>('/teachers', { query: { pageSize: 50 } }),
-  });
-
-  const schoolsQuery = useQuery({
-    queryKey: ['schools'],
-    queryFn: () => api.get<School[]>('/schools', { query: { pageSize: 50 } }),
+    queryFn: () => staffApi.listTeachers({ pageSize: 50 }),
   });
 
   const classes = useMemo(() => classesQuery.data ?? [], [classesQuery.data]);
   const subjects = useMemo(() => subjectsQuery.data ?? [], [subjectsQuery.data]);
   const teachers: Teacher[] = useMemo(() => teachersQuery.data?.data ?? [], [teachersQuery.data]);
-  const schools = useMemo(() => schoolsQuery.data ?? [], [schoolsQuery.data]);
 
   // Set default classId when classes load
   const activeClassId = selectedClassId || (classes[0]?.id ?? '');
@@ -78,7 +73,7 @@ export default function TimetablesPage() {
       toast.success('Period removed from schedule');
       void queryClient.invalidateQueries({ queryKey: ['timetables'] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message || 'Failed to remove period');
     },
   });
@@ -213,7 +208,6 @@ export default function TimetablesPage() {
           dayOfWeek={selectedDay}
           subjects={subjects}
           teachers={teachers}
-          schools={schools}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
@@ -230,7 +224,6 @@ function CreateTimetableModal({
   dayOfWeek,
   subjects,
   teachers,
-  schools,
   onClose,
   onSuccess,
 }: {
@@ -238,7 +231,6 @@ function CreateTimetableModal({
   dayOfWeek: number;
   subjects: Subject[];
   teachers: Teacher[];
-  schools: School[];
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -263,7 +255,7 @@ function CreateTimetableModal({
       toast.success('Period scheduled successfully');
       onSuccess();
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message || 'Collision detected or schedule conflict');
     },
   });

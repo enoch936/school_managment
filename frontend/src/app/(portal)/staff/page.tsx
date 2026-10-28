@@ -592,7 +592,7 @@ function AssignTeacherModal({
       toast.success('Subject assigned to teacher');
       onSuccess();
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message || 'Failed to assign subject');
     },
   });
