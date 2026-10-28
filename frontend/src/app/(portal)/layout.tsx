@@ -6,11 +6,15 @@ import { Loader2 } from 'lucide-react';
 import { Sidebar } from '@/components/navigation/sidebar';
 import { PortalHeader } from '@/components/navigation/portal-header';
 import { useAuthStore } from '@/lib/auth/store';
+import { useNotificationsSocket } from '@/lib/socket/use-notifications-socket';
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
+
+  // Connect real-time WebSockets notifications listener
+  useNotificationsSocket();
 
   useEffect(() => {
     if (!isAuthenticated) {

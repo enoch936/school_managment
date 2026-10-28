@@ -14,6 +14,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { DatabaseModule } from './database/database.module';
 import { CacheModule } from './infrastructure/cache/cache.module';
 import { EmailModule } from './infrastructure/email/email.module';
+import { StorageModule } from './infrastructure/storage/storage.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuditInterceptor } from './modules/audit/audit.interceptor';
@@ -22,10 +23,21 @@ import { UsersModule } from './modules/users/users.module';
 import { SchoolsModule } from './modules/schools/schools.module';
 import { AcademicsModule } from './modules/academics/academics.module';
 import { StudentsModule } from './modules/students/students.module';
+import { GuardiansModule } from './modules/guardians/guardians.module';
+import { ExaminationsModule } from './modules/examinations/examinations.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { LibraryModule } from './modules/library/library.module';
+import { TransportModule } from './modules/transport/transport.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { StaffModule } from './modules/staff/staff.module';
+import { TimetablesModule } from './modules/timetables/timetables.module';
+import { AssignmentsModule } from './modules/assignments/assignments.module';
+import { DisciplineHealthModule } from './modules/discipline-health/discipline-health.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HealthModule } from './health/health.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -72,6 +84,7 @@ import { HealthModule } from './health/health.module';
     DatabaseModule,
     CacheModule,
     EmailModule,
+    StorageModule,
     AuthorizationModule,
     AuditModule,
     AuthModule,
@@ -79,18 +92,32 @@ import { HealthModule } from './health/health.module';
     SchoolsModule,
     AcademicsModule,
     StudentsModule,
+    GuardiansModule,
+    ExaminationsModule,
+    FinanceModule,
+    LibraryModule,
+    TransportModule,
+    ReportsModule,
     AttendanceModule,
+    StaffModule,
+    TimetablesModule,
+    AssignmentsModule,
+    DisciplineHealthModule,
     DashboardModule,
     NotificationsModule,
     HealthModule,
+    MonitoringModule,
   ],
   providers: [
-    { provide: APP_PIPE, useValue: new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: true },
-    }) },
+    {
+      provide: APP_PIPE,
+      useValue: new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      }),
+    },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
