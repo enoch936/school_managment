@@ -3,6 +3,8 @@ import { DisciplineHealthService } from './discipline-health.service';
 import { PrismaService } from '../../database/prisma.service';
 import { NotFoundException } from '../../common/exceptions/domain.exception';
 
+import { ResourceAuthorizationService } from '../authorization/resource-authorization.service';
+
 describe('DisciplineHealthService', () => {
   let service: DisciplineHealthService;
   let prisma: {
@@ -11,8 +13,10 @@ describe('DisciplineHealthService', () => {
     disciplineCase: { create: jest.Mock; findMany: jest.Mock; count: jest.Mock; findFirst: jest.Mock; update: jest.Mock };
     healthRecord: { findFirst: jest.Mock; upsert: jest.Mock };
   };
+  let resourceAuthz: { assertCanAccessSensitiveRecord: jest.Mock };
 
   beforeEach(async () => {
+    resourceAuthz = { assertCanAccessSensitiveRecord: jest.fn() };
     prisma = {
       school: { findFirst: jest.fn(), findMany: jest.fn() },
       student: { findFirst: jest.fn() },
@@ -33,6 +37,7 @@ describe('DisciplineHealthService', () => {
       providers: [
         DisciplineHealthService,
         { provide: PrismaService, useValue: prisma },
+        { provide: ResourceAuthorizationService, useValue: resourceAuthz },
       ],
     }).compile();
 

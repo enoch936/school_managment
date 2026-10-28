@@ -51,3 +51,25 @@ Permissions adhere to standard `resource:action` taxonomy:
 - **Transport**: `transport:read`, `transport:manage`
 - **Reports**: `report:read`, `report:export`
 - **Audit & Security**: `audit:read`
+
+---
+
+## 3. Custom Roles & Resource-Level Authorization (ReBAC / ABAC)
+
+### 3.1 Custom Roles Management
+Organizations can create custom roles dynamically via `POST /api/v1/roles` and assign granular permissions.
+- **Tenant Scope**: System roles have `organizationId: null` and cannot be modified or deleted. Tenant-scoped custom roles have `organizationId: "<org-id>"` and are managed per school organization.
+- **Permission Assignment**: Dynamic permission bindings are validated and stored in `RolePermission`.
+
+### 3.2 Resource-Level Authorization Service (`ResourceAuthorizationService`)
+Authorization in the SMS goes beyond static role checks, validating:
+1. **Tenant & School Scope (`assertSchoolScope`)**: Prevents any cross-organization data leakage or ID tampering.
+2. **Campus Scope (`assertCampusScope`)**: Restricts campus-assigned operators strictly to their assigned campus facilities.
+3. **Student Record Access (`assertCanAccessStudent`)**:
+   - Students may only access their own profile and records.
+   - Parents/guardians may only access linked children confirmed in `StudentGuardian`.
+   - Teachers may only access students enrolled in their assigned classes or subject sections.
+4. **Sensitive Record Authorization (`assertCanAccessSensitiveRecord`)**:
+   - Confidential student counseling and medical records are restricted to School Nurses, Counselors, Principals, or parents.
+   - When a `platform_super_admin` accesses sensitive student records for support, an immutable `AuditEvent` (`sensitive_record.platform_admin_access.<type>`) is recorded with full audit trail logging.
+

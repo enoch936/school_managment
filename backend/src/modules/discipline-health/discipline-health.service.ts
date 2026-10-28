@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { DomainException, NotFoundException } from '../../common/exceptions/domain.exception';
 import { paginate } from '../../common/pagination/pagination.dto';
+import { ResourceAuthorizationService } from '../authorization/resource-authorization.service';
+import type { AuthPrincipal } from '../../common/interfaces/auth-principal.interface';
 import {
   CreateDisciplineCaseDto,
   DisciplineQueryDto,
@@ -12,7 +14,10 @@ import {
 
 @Injectable()
 export class DisciplineHealthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly resourceAuthz: ResourceAuthorizationService,
+  ) {}
 
   private async assertSchoolInOrganization(schoolId: string, organizationId: string) {
     const school = await this.prisma.school.findFirst({
@@ -40,8 +45,13 @@ export class DisciplineHealthService {
     organizationId: string,
     recordedById: string,
     dto: CreateDisciplineCaseDto,
+    principal?: AuthPrincipal,
   ) {
     await this.assertSchoolInOrganization(dto.schoolId, organizationId);
+
+    if (principal) {
+      await this.resourceAuthz.assertCanAccessSensitiveRecord(principal, dto.studentId, 'discipline');
+    }
 
     const student = await this.prisma.student.findFirst({
       where: { id: dto.studentId, schoolId: dto.schoolId, deletedAt: null },
@@ -127,8 +137,13 @@ export class DisciplineHealthService {
     });
   }
 
-  async getHealthRecord(organizationId: string, studentId: string) {
+  async getHealthRecord(organizationId: string, studentId: string, principal?: AuthPrincipal) {
     const schoolIds = await this.getOrganizationSchoolIds(organizationId);
+
+    if (principal) {
+      await this.resourceAuthz.assertCanAccessSensitiveRecord(principal, studentId, 'health');
+    }
+
     const record = await this.prisma.healthRecord.findFirst({
       where: { studentId, schoolId: { in: schoolIds } },
       include: {
@@ -145,8 +160,13 @@ export class DisciplineHealthService {
     organizationId: string,
     userId: string,
     dto: UpsertHealthRecordDto,
+    principal?: AuthPrincipal,
   ) {
     await this.assertSchoolInOrganization(dto.schoolId, organizationId);
+
+    if (principal) {
+      await this.resourceAuthz.assertCanAccessSensitiveRecord(principal, dto.studentId, 'health');
+    }
 
     const student = await this.prisma.student.findFirst({
       where: { id: dto.studentId, schoolId: dto.schoolId, deletedAt: null },

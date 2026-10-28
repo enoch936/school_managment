@@ -38,7 +38,7 @@ export class DisciplineHealthController {
     @CurrentUser() user: AuthPrincipal,
     @Body() dto: CreateDisciplineCaseDto,
   ) {
-    return this.service.createDisciplineCase(tenant.organizationId, user.userId, dto);
+    return this.service.createDisciplineCase(tenant.organizationId, user.userId, dto, user);
   }
 
   @Get('discipline-cases')
@@ -65,9 +65,10 @@ export class DisciplineHealthController {
   @RequirePermissions(PERMISSIONS.HEALTH_READ)
   getHealthRecord(
     @ActiveTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthPrincipal,
     @Param('studentId', new ParseUUIDPipe()) studentId: string,
   ) {
-    return this.service.getHealthRecord(tenant.organizationId, studentId);
+    return this.service.getHealthRecord(tenant.organizationId, studentId, user);
   }
 
   @Put('health-records')
@@ -78,6 +79,6 @@ export class DisciplineHealthController {
     @CurrentUser() user: AuthPrincipal,
     @Body() dto: UpsertHealthRecordDto,
   ) {
-    return this.service.upsertHealthRecord(tenant.organizationId, user.userId, dto);
+    return this.service.upsertHealthRecord(tenant.organizationId, user.userId, dto, user);
   }
 }
