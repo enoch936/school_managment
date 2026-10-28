@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   BookOpen,
   Briefcase,
+  Building2,
   CalendarCheck,
   CalendarRange,
   CreditCard,
@@ -33,6 +34,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/organization', label: 'Organization & Schools', icon: Building2, permission: 'school:read' },
   { href: '/students', label: 'Students', icon: Users, permission: 'student:read' },
   { href: '/guardians', label: 'Guardians', icon: UserSquare2, permission: 'guardian:read' },
   { href: '/staff', label: 'Staff & HR', icon: Briefcase, permission: 'staff:read' },

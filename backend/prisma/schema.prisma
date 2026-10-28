@@ -274,6 +274,9 @@ model Subscription {
   status         String   @default("active")
   seatsAllowed   Int      @default(50)
   studentLimit   Int      @default(500)
+  campusLimit    Int      @default(3)
+  staffLimit     Int      @default(50)
+  storageLimitMb Int      @default(5120)
   startsAt       DateTime @default(now()) @db.Timestamptz(6)
   endsAt         DateTime? @db.Timestamptz(6)
   createdAt      DateTime @default(now()) @db.Timestamptz(6)
@@ -308,8 +311,11 @@ model School {
   email          String?
   phone          String?
   address        String?
+  website        String?
+  taxId          String?
   logoUrl        String?
   timezone       String   @default("Africa/Addis_Ababa")
+  locale         String   @default("en")
   currency       String   @default("ETB")
   isActive       Boolean  @default(true)
   settings       Json     @default("{}")
@@ -317,23 +323,27 @@ model School {
   updatedAt      DateTime @updatedAt @db.Timestamptz(6)
   deletedAt      DateTime? @db.Timestamptz(6)
 
-  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  campuses      Campus[]
-  academicYears AcademicYear[]
-  memberships   Membership[]
-  students      Student[]
-  staff         Staff[]
-  teachers      Teacher[]
-  classes       Class[]
-  sections      Section[]
-  subjects      Subject[]
-  departments   Department[]
-  rooms         Room[]
-  feeStructures FeeStructure[]
-  invoices      Invoice[]
-  payments      Payment[]
-  announcements Announcement[]
-  documents     Document[]
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campuses          Campus[]
+  academicYears     AcademicYear[]
+  memberships       Membership[]
+  students          Student[]
+  staff             Staff[]
+  teachers          Teacher[]
+  classes           Class[]
+  sections          Section[]
+  subjects          Subject[]
+  departments       Department[]
+  rooms             Room[]
+  feeStructures     FeeStructure[]
+  invoices          Invoice[]
+  payments          Payment[]
+  announcements     Announcement[]
+  documents         Document[]
+  calendarEvents    AcademicCalendarEvent[]
+  gradingScales     GradingScale[]
+  policies          SchoolPolicy[]
+  documentTemplates DocumentTemplate[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -363,6 +373,74 @@ model Campus {
 
   @@unique([schoolId, code])
   @@index([schoolId])
+}
+
+model AcademicCalendarEvent {
+  id                String   @id @default(uuid())
+  schoolId          String
+  academicYearId    String?
+  title             String
+  description       String?
+  type              String   @default("HOLIDAY")
+  startDate         DateTime @db.Date
+  endDate           DateTime @db.Date
+  isAllDay          Boolean  @default(true)
+  affectsAttendance Boolean  @default(true)
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, startDate])
+}
+
+model GradingScale {
+  id          String   @id @default(uuid())
+  schoolId    String
+  name        String
+  type        String   @default("LETTER_GRADE")
+  isDefault   Boolean  @default(false)
+  bands       Json
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, isDefault])
+}
+
+model SchoolPolicy {
+  id          String   @id @default(uuid())
+  schoolId    String
+  category    String
+  key         String
+  name        String
+  value       Json
+  description String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, key])
+  @@index([schoolId, category])
+}
+
+model DocumentTemplate {
+  id          String   @id @default(uuid())
+  schoolId    String
+  type        String
+  name        String
+  layout      Json
+  headerLogo  String?
+  footerText  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, type])
 }
 
 // ---------------------------------------------------------------------------
