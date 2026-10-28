@@ -3,6 +3,8 @@ import { Prisma, SubmissionStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { DomainException, NotFoundException } from '../../common/exceptions/domain.exception';
 import { paginate } from '../../common/pagination/pagination.dto';
+import { ResourceAuthorizationService } from '../authorization/resource-authorization.service';
+import type { AuthPrincipal } from '../../common/interfaces/auth-principal.interface';
 import {
   AssignmentQueryDto,
   CreateAssignmentDto,
@@ -12,7 +14,10 @@ import {
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly resourceAuth: ResourceAuthorizationService,
+  ) {}
 
   private async assertSchoolInOrganization(schoolId: string, organizationId: string) {
     const school = await this.prisma.school.findFirst({
@@ -36,7 +41,10 @@ export class AssignmentsService {
     return schools.map((s) => s.id);
   }
 
-  async create(organizationId: string, dto: CreateAssignmentDto) {
+  async create(principal: AuthPrincipal, dto: CreateAssignmentDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    await this.resourceAuth.assertSchoolScope(principal, dto.schoolId);
+    await this.resourceAuth.assertTeacherAssignment(principal, dto.classId, dto.subjectId);
     await this.assertSchoolInOrganization(dto.schoolId, organizationId);
 
     return this.prisma.assignment.create({
@@ -127,7 +135,9 @@ export class AssignmentsService {
     });
   }
 
-  async submit(organizationId: string, assignmentId: string, dto: SubmitAssignmentDto) {
+  async submit(principal: AuthPrincipal, assignmentId: string, dto: SubmitAssignmentDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    await this.resourceAuth.assertCanAccessStudent(principal, dto.studentId);
     const assignment = await this.findOne(organizationId, assignmentId);
 
     const now = new Date();
@@ -182,13 +192,16 @@ export class AssignmentsService {
   }
 
   async gradeSubmission(
-    organizationId: string,
+    principal: AuthPrincipal,
     assignmentId: string,
     submissionId: string,
-    graderId: string,
     dto: GradeSubmissionDto,
   ) {
+    const organizationId = principal.activeOrganizationId ?? '';
     const assignment = await this.findOne(organizationId, assignmentId);
+
+    // Enforce teacher-class assignment validation
+    await this.resourceAuth.assertTeacherAssignment(principal, assignment.classId, assignment.subjectId);
 
     if (dto.score > assignment.maxScore) {
       throw new DomainException(
@@ -211,7 +224,7 @@ export class AssignmentsService {
         score: dto.score,
         feedback: dto.feedback,
         status: SubmissionStatus.GRADED,
-        gradedById: graderId,
+        gradedById: principal.userId,
         gradedAt: new Date(),
       },
       include: {

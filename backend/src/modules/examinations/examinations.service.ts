@@ -3,11 +3,16 @@ import { AttemptStatus, ExamStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { DomainException, NotFoundException } from '../../common/exceptions/domain.exception';
 import { paginate } from '../../common/pagination/pagination.dto';
+import { ResourceAuthorizationService } from '../authorization/resource-authorization.service';
+import type { AuthPrincipal } from '../../common/interfaces/auth-principal.interface';
 import { CreateExamDto, ExamQueryDto, RecordGradeDto, UpdateExamDto } from './dto/examination.dto';
 
 @Injectable()
 export class ExaminationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly resourceAuth: ResourceAuthorizationService,
+  ) {}
 
   public static calculateLetterGrade(percentage: number): string {
     if (percentage >= 90) return 'A';
@@ -31,7 +36,10 @@ export class ExaminationsService {
     }
   }
 
-  async create(organizationId: string, dto: CreateExamDto) {
+  async create(principal: AuthPrincipal, dto: CreateExamDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    await this.resourceAuth.assertSchoolScope(principal, dto.schoolId);
+    await this.resourceAuth.assertTeacherAssignment(principal, dto.classId, dto.subjectId);
     await this.assertSchoolInOrganization(dto.schoolId, organizationId);
 
     return this.prisma.exam.create({
@@ -91,35 +99,33 @@ export class ExaminationsService {
       where: {
         id,
         deletedAt: null,
-        class: { school: { organizationId } },
+        class: {
+          school: { organizationId },
+        },
       },
       include: {
-        subject: true,
-        class: true,
+        subject: { select: { id: true, code: true, name: true } },
+        class: { select: { id: true, name: true } },
         attempts: {
           include: {
-            student: {
-              select: {
-                id: true,
-                studentNumber: true,
-                firstName: true,
-                lastName: true,
-              },
-            },
+            student: { select: { id: true, firstName: true, lastName: true, studentNumber: true } },
           },
         },
       },
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam', id);
+      throw new NotFoundException('Exam not found');
     }
 
     return exam;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateExamDto) {
-    await this.findOne(organizationId, id);
+  async update(principal: AuthPrincipal, id: string, dto: UpdateExamDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    const exam = await this.findOne(organizationId, id);
+
+    this.resourceAuth.assertRecordStateMutable('Exam', exam.status, 'update', principal);
 
     return this.prisma.exam.update({
       where: { id },
@@ -146,8 +152,14 @@ export class ExaminationsService {
     });
   }
 
-  async recordGrade(organizationId: string, examId: string, dto: RecordGradeDto) {
+  async recordGrade(principal: AuthPrincipal, examId: string, dto: RecordGradeDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
     const exam = await this.findOne(organizationId, examId);
+
+    // Multi-dimensional authorization check: teacher assignment, year boundary, exam state
+    await this.resourceAuth.assertTeacherAssignment(principal, exam.classId, exam.subjectId);
+    await this.resourceAuth.assertAcademicYearMutable(principal, exam.academicYearId, exam.schoolId);
+    this.resourceAuth.assertRecordStateMutable('Exam', exam.status, 'recordGrade', principal);
 
     const student = await this.prisma.student.findFirst({
       where: { id: dto.studentId, schoolId: exam.schoolId, deletedAt: null },
@@ -180,48 +192,66 @@ export class ExaminationsService {
         status: AttemptStatus.GRADED,
         gradedAt: new Date(),
       },
+      include: {
+        student: { select: { id: true, firstName: true, lastName: true, studentNumber: true } },
+      },
     });
   }
 
-  async getResultsSummary(organizationId: string, id: string) {
-    const exam = await this.findOne(organizationId, id);
+  async getResultsSummary(organizationId: string, examId: string) {
+    const exam = await this.findOne(organizationId, examId);
+
     const attempts = await this.prisma.examAttempt.findMany({
-      where: { examId: id, status: AttemptStatus.GRADED },
+      where: { examId, status: AttemptStatus.GRADED },
       select: { score: true, percentage: true },
     });
 
     if (attempts.length === 0) {
       return {
-        totalGraded: 0,
+        examId,
+        title: exam.title,
+        totalAttempts: 0,
         averageScore: 0,
+        averagePercentage: 0,
         highestScore: 0,
         lowestScore: 0,
-        passRate: 0,
-        gradeDistribution: {},
+        passCount: 0,
+        failCount: 0,
+        gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 },
       };
     }
 
-    const scores = attempts.map((a) => a.score ?? 0);
-    const totalScore = scores.reduce((sum, s) => sum + s, 0);
-    const averageScore = Math.round((totalScore / attempts.length) * 100) / 100;
-    const highestScore = Math.max(...scores);
-    const lowestScore = Math.min(...scores);
-    const passedCount = attempts.filter((a) => (a.score ?? 0) >= exam.passMark).length;
-    const passRate = Math.round((passedCount / attempts.length) * 100);
+    let sumScore = 0;
+    let sumPercentage = 0;
+    let highest = -Infinity;
+    let lowest = Infinity;
+    let passCount = 0;
+    const gradeDistribution: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, F: 0 };
 
-    const gradeDistribution: Record<string, number> = {};
-    for (const a of attempts) {
-      const pct = a.percentage ?? (exam.totalMarks > 0 ? Math.round(((a.score ?? 0) / exam.totalMarks) * 100) : 0);
-      const letter = ExaminationsService.calculateLetterGrade(pct);
+    for (const attempt of attempts) {
+      const score = attempt.score ?? 0;
+      const percentage = attempt.percentage ?? 0;
+
+      sumScore += score;
+      sumPercentage += percentage;
+      if (score > highest) highest = score;
+      if (score < lowest) lowest = score;
+      if (exam.passMark && score >= exam.passMark) passCount++;
+
+      const letter = ExaminationsService.calculateLetterGrade(percentage);
       gradeDistribution[letter] = (gradeDistribution[letter] ?? 0) + 1;
     }
 
     return {
-      totalGraded: attempts.length,
-      averageScore,
-      highestScore,
-      lowestScore,
-      passRate,
+      examId,
+      title: exam.title,
+      totalAttempts: attempts.length,
+      averageScore: Math.round((sumScore / attempts.length) * 10) / 10,
+      averagePercentage: Math.round((sumPercentage / attempts.length) * 10) / 10,
+      highestScore: highest,
+      lowestScore: lowest,
+      passCount,
+      failCount: attempts.length - passCount,
       gradeDistribution,
     };
   }

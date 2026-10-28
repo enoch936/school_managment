@@ -2,7 +2,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, setActiveOrganizationId, setRefreshHandler } from '@/lib/api/client';
+import {
+  api,
+  setActiveOrganizationId,
+  setActiveSchoolId,
+  setActiveCampusId,
+  setActiveAcademicYearId,
+  setRefreshHandler,
+} from '@/lib/api/client';
 import type { AuthUser, MeResponse } from '@/lib/api/domain';
 import { useAuthStore } from '@/lib/auth/store';
 
@@ -47,7 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setActiveOrganizationId(store.activeOrganizationId);
-  }, [store.activeOrganizationId]);
+    setActiveSchoolId(store.activeSchoolId);
+    setActiveCampusId(store.activeCampusId);
+    setActiveAcademicYearId(store.activeAcademicYearId);
+  }, [
+    store.activeOrganizationId,
+    store.activeSchoolId,
+    store.activeCampusId,
+    store.activeAcademicYearId,
+  ]);
 
   const refreshMe = useCallback(async () => {
     setIsLoading(true);

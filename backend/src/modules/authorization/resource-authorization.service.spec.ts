@@ -12,6 +12,8 @@ describe('ResourceAuthorizationService', () => {
     guardian: { findUnique: jest.Mock };
     studentGuardian: { findUnique: jest.Mock };
     teacher: { findUnique: jest.Mock };
+    teacherAssignment: { findFirst: jest.Mock };
+    academicYear: { findFirst: jest.Mock };
     auditEvent: { create: jest.Mock };
   };
 
@@ -33,6 +35,9 @@ describe('ResourceAuthorizationService', () => {
     activeOrganizationId: 'org-1',
     activeSchoolId: 'sch-1',
     activeCampusId: null,
+    activeAcademicYearId: 'ay-1',
+    activeAcademicYearStatus: 'ACTIVE',
+    activeRoleKey: 'teacher',
     sessionId: 'sess-1',
     ...overrides,
   });
@@ -44,6 +49,8 @@ describe('ResourceAuthorizationService', () => {
       guardian: { findUnique: jest.fn() },
       studentGuardian: { findUnique: jest.fn() },
       teacher: { findUnique: jest.fn() },
+      teacherAssignment: { findFirst: jest.fn() },
+      academicYear: { findFirst: jest.fn() },
       auditEvent: { create: jest.fn() },
     };
 
@@ -128,5 +135,76 @@ describe('ResourceAuthorizationService', () => {
         }),
       }),
     );
+  });
+
+  it('should reject teacher assignment when teacher is not assigned to class', async () => {
+    const teacherPrincipal = createPrincipal({
+      userId: 'teacher-user-1',
+      memberships: [
+        {
+          membershipId: 'mem-t',
+          organizationId: 'org-1',
+          schoolId: 'sch-1',
+          campusId: null,
+          roleKey: 'teacher',
+          status: 'ACTIVE',
+        },
+      ],
+    });
+
+    prisma.teacher.findUnique.mockResolvedValue({ id: 'teacher-1' });
+    prisma.teacherAssignment.findFirst.mockResolvedValue(null); // Not assigned!
+
+    await expect(
+      service.assertTeacherAssignment(teacherPrincipal, 'cls-unassigned'),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('should allow principal or school admin to bypass teacher class assignment check', async () => {
+    const adminPrincipal = createPrincipal({
+      userId: 'admin-user-1',
+      memberships: [
+        {
+          membershipId: 'mem-a',
+          organizationId: 'org-1',
+          schoolId: 'sch-1',
+          campusId: null,
+          roleKey: 'principal',
+          status: 'ACTIVE',
+        },
+      ],
+    });
+
+    await expect(
+      service.assertTeacherAssignment(adminPrincipal, 'cls-any'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('should forbid modifications to closed or archived academic year without override permission', async () => {
+    const teacherPrincipal = createPrincipal();
+    prisma.academicYear.findFirst.mockResolvedValue({
+      id: 'ay-closed',
+      name: '2023-2024',
+      isCurrent: false,
+      endDate: new Date('2024-06-30'),
+    });
+
+    await expect(
+      service.assertAcademicYearMutable(teacherPrincipal, 'ay-closed', 'sch-1'),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('should forbid changing grades on published exam without administrative permissions', () => {
+    const teacherPrincipal = createPrincipal();
+    expect(() =>
+      service.assertRecordStateMutable('Exam', 'PUBLISHED', 'recordGrade', teacherPrincipal),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('should forbid modifying paid invoices', () => {
+    const principal = createPrincipal();
+    expect(() =>
+      service.assertRecordStateMutable('Invoice', 'PAID', 'update', principal),
+    ).toThrow(ForbiddenException);
   });
 });

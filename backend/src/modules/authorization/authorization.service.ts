@@ -127,6 +127,9 @@ export class AuthorizationService {
   async buildPrincipal(
     userId: string,
     requestedOrganizationId?: string | null,
+    requestedSchoolId?: string | null,
+    requestedCampusId?: string | null,
+    requestedAcademicYearId?: string | null,
     sessionId?: string | null,
   ): Promise<AuthPrincipal> {
     const cached = await this.load(userId);
@@ -147,15 +150,98 @@ export class AuthorizationService {
       active = cached.memberships[0] ?? null;
     }
 
+    const orgId = active?.organizationId ?? null;
+    let resolvedSchoolId = active?.schoolId ?? null;
+    let resolvedCampusId = active?.campusId ?? null;
+    let resolvedAcademicYearId: string | null = null;
+    let resolvedYearStatus: 'ACTIVE' | 'UPCOMING' | 'CLOSED' | 'ARCHIVED' | null = null;
+
+    if (orgId) {
+      // 1. Resolve and validate School
+      if (requestedSchoolId) {
+        const school = await this.prisma.school.findFirst({
+          where: { id: requestedSchoolId, organizationId: orgId, deletedAt: null },
+          select: { id: true },
+        });
+        if (school) {
+          // If the user's membership restricts them to a specific school, ensure it matches
+          if (active?.schoolId && active.schoolId !== requestedSchoolId && !isPlatformAdmin) {
+            throw new UnauthorizedException('You do not have authorization for the requested school');
+          }
+          resolvedSchoolId = school.id;
+        }
+      } else if (!resolvedSchoolId) {
+        // Default to the first school in the organization if membership has no specific school
+        const defaultSchool = await this.prisma.school.findFirst({
+          where: { organizationId: orgId, deletedAt: null },
+          select: { id: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (defaultSchool) {
+          resolvedSchoolId = defaultSchool.id;
+        }
+      }
+
+      // 2. Resolve and validate Campus
+      if (resolvedSchoolId && requestedCampusId) {
+        const campus = await this.prisma.campus.findFirst({
+          where: { id: requestedCampusId, schoolId: resolvedSchoolId, deletedAt: null },
+          select: { id: true },
+        });
+        if (campus) {
+          if (active?.campusId && active.campusId !== requestedCampusId && !isPlatformAdmin) {
+            throw new UnauthorizedException('You do not have authorization for the requested campus');
+          }
+          resolvedCampusId = campus.id;
+        }
+      }
+
+      // 3. Resolve and validate Academic Year
+      if (resolvedSchoolId) {
+        if (requestedAcademicYearId) {
+          const year = await this.prisma.academicYear.findFirst({
+            where: { id: requestedAcademicYearId, schoolId: resolvedSchoolId },
+            select: { id: true, isCurrent: true, startDate: true, endDate: true },
+          });
+          if (year) {
+            resolvedAcademicYearId = year.id;
+            const now = new Date();
+            if (year.endDate < now) {
+              resolvedYearStatus = 'CLOSED';
+            } else if (year.startDate > now) {
+              resolvedYearStatus = 'UPCOMING';
+            } else {
+              resolvedYearStatus = year.isCurrent ? 'ACTIVE' : 'CLOSED';
+            }
+          }
+        }
+
+        // If no academic year requested or not found, fall back to current active year
+        if (!resolvedAcademicYearId) {
+          const currentYear = await this.prisma.academicYear.findFirst({
+            where: { schoolId: resolvedSchoolId, isCurrent: true },
+            select: { id: true, startDate: true, endDate: true },
+          });
+          if (currentYear) {
+            resolvedAcademicYearId = currentYear.id;
+            resolvedYearStatus = 'ACTIVE';
+          }
+        }
+      }
+    }
+
     return {
       userId: cached.userId,
       email: cached.email,
       isPlatformAdmin,
       permissions,
       memberships: cached.memberships,
-      activeOrganizationId: active?.organizationId ?? null,
-      activeSchoolId: active?.schoolId ?? null,
-      activeCampusId: active?.campusId ?? null,
+      activeOrganizationId: orgId,
+      activeSchoolId: resolvedSchoolId,
+      activeCampusId: resolvedCampusId,
+      activeAcademicYearId: resolvedAcademicYearId,
+      activeAcademicYearStatus: resolvedYearStatus,
+      activeRoleKey: active?.roleKey ?? (isPlatformAdmin ? 'platform_super_admin' : null),
       sessionId: sessionId ?? null,
     };
   }

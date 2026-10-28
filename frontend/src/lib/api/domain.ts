@@ -38,6 +38,9 @@ export interface Principal {
   activeOrganizationId: string | null;
   activeSchoolId: string | null;
   activeCampusId: string | null;
+  activeAcademicYearId: string | null;
+  activeAcademicYearStatus: 'ACTIVE' | 'UPCOMING' | 'CLOSED' | 'ARCHIVED' | null;
+  activeRoleKey: string | null;
 }
 
 export interface MeResponse {

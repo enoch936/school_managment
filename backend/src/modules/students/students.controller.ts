@@ -11,9 +11,11 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ActiveTenant, TenantContext } from '../../common/decorators/active-tenant.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { Audit } from '../audit/audit.decorator';
+import type { AuthPrincipal } from '../../common/interfaces/auth-principal.interface';
 import { CreateStudentDto, StudentQueryDto, UpdateStudentDto } from './dto/student.dto';
 import { StudentsService } from './students.service';
 
@@ -26,34 +28,34 @@ export class StudentsController {
   @Post()
   @RequirePermissions(PERMISSIONS.STUDENT_MANAGE)
   @Audit('student.create', 'Student')
-  create(@ActiveTenant() tenant: TenantContext, @Body() dto: CreateStudentDto) {
-    return this.students.create(tenant.organizationId, dto);
+  create(@CurrentUser() principal: AuthPrincipal, @Body() dto: CreateStudentDto) {
+    return this.students.create(principal, dto);
   }
 
   @Get()
   @RequirePermissions(PERMISSIONS.STUDENT_READ)
-  findAll(@ActiveTenant() tenant: TenantContext, @Query() query: StudentQueryDto) {
-    return this.students.findAll(tenant.organizationId, query);
+  findAll(@CurrentUser() principal: AuthPrincipal, @Query() query: StudentQueryDto) {
+    return this.students.findAll(principal, query);
   }
 
   @Get(':id')
   @RequirePermissions(PERMISSIONS.STUDENT_READ)
   findOne(
-    @ActiveTenant() tenant: TenantContext,
+    @CurrentUser() principal: AuthPrincipal,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    return this.students.findOne(tenant.organizationId, id);
+    return this.students.findOne(principal, id);
   }
 
   @Patch(':id')
   @RequirePermissions(PERMISSIONS.STUDENT_MANAGE)
   @Audit('student.update', 'Student')
   update(
-    @ActiveTenant() tenant: TenantContext,
+    @CurrentUser() principal: AuthPrincipal,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateStudentDto,
   ) {
-    return this.students.update(tenant.organizationId, id, dto);
+    return this.students.update(principal, id, dto);
   }
 
   @Delete(':id')

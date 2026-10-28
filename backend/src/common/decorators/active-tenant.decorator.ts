@@ -6,6 +6,7 @@ export interface TenantContext {
   organizationId: string;
   schoolId: string | null;
   campusId: string | null;
+  academicYearId: string | null;
   isPlatformAdmin: boolean;
 }
 
@@ -26,6 +27,7 @@ export const ActiveTenant = createParamDecorator(
       organizationId: user.activeOrganizationId,
       schoolId: user.activeSchoolId,
       campusId: user.activeCampusId,
+      academicYearId: user.activeAcademicYearId,
       isPlatformAdmin: user.isPlatformAdmin,
     };
   },

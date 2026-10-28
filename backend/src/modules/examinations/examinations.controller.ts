@@ -10,9 +10,11 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ActiveTenant, TenantContext } from '../../common/decorators/active-tenant.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { Audit } from '../audit/audit.decorator';
+import type { AuthPrincipal } from '../../common/interfaces/auth-principal.interface';
 import { ExaminationsService } from './examinations.service';
 import { CreateExamDto, ExamQueryDto, RecordGradeDto, UpdateExamDto } from './dto/examination.dto';
 
@@ -25,8 +27,8 @@ export class ExaminationsController {
   @Post()
   @RequirePermissions(PERMISSIONS.EXAM_MANAGE)
   @Audit('exam.create', 'Exam')
-  create(@ActiveTenant() tenant: TenantContext, @Body() dto: CreateExamDto) {
-    return this.exams.create(tenant.organizationId, dto);
+  create(@CurrentUser() principal: AuthPrincipal, @Body() dto: CreateExamDto) {
+    return this.exams.create(principal, dto);
   }
 
   @Get()
@@ -48,11 +50,11 @@ export class ExaminationsController {
   @RequirePermissions(PERMISSIONS.EXAM_MANAGE)
   @Audit('exam.update', 'Exam')
   update(
-    @ActiveTenant() tenant: TenantContext,
+    @CurrentUser() principal: AuthPrincipal,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateExamDto,
   ) {
-    return this.exams.update(tenant.organizationId, id, dto);
+    return this.exams.update(principal, id, dto);
   }
 
   @Post(':id/publish')
@@ -69,11 +71,11 @@ export class ExaminationsController {
   @RequirePermissions(PERMISSIONS.GRADE_MANAGE)
   @Audit('exam.record_grade', 'ExamAttempt')
   recordGrade(
-    @ActiveTenant() tenant: TenantContext,
+    @CurrentUser() principal: AuthPrincipal,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RecordGradeDto,
   ) {
-    return this.exams.recordGrade(tenant.organizationId, id, dto);
+    return this.exams.recordGrade(principal, id, dto);
   }
 
   @Get(':id/results')

@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { DomainException, NotFoundException } from '../../common/exceptions/domain.exception';
-import { HttpStatus } from '@nestjs/common';
 import { paginate } from '../../common/pagination/pagination.dto';
 import { CreateStudentDto, StudentQueryDto, UpdateStudentDto } from './dto/student.dto';
+import { ResourceAuthorizationService } from '../authorization/resource-authorization.service';
+import type { AuthPrincipal } from '../../common/interfaces/auth-principal.interface';
 
 /**
  * Student persistence and business rules. Every query is scoped by the
@@ -13,7 +14,10 @@ import { CreateStudentDto, StudentQueryDto, UpdateStudentDto } from './dto/stude
  */
 @Injectable()
 export class StudentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly resourceAuth: ResourceAuthorizationService,
+  ) {}
 
   private tenantScope(organizationId: string, schoolId?: string): Prisma.StudentWhereInput {
     return {
@@ -36,7 +40,11 @@ export class StudentsService {
     }
   }
 
-  async create(organizationId: string, dto: CreateStudentDto) {
+  async create(principal: AuthPrincipal, dto: CreateStudentDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    await this.resourceAuth.assertSchoolScope(principal, dto.schoolId);
+    this.resourceAuth.assertCampusScope(principal, dto.campusId);
+
     await this.assertSchoolInOrganization(dto.schoolId, organizationId);
     if (dto.campusId) {
       const campus = await this.prisma.campus.findFirst({
@@ -82,10 +90,27 @@ export class StudentsService {
     });
   }
 
-  async findAll(organizationId: string, query: StudentQueryDto) {
+  async findAll(principal: AuthPrincipal, query: StudentQueryDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    const roles = new Set(principal.memberships.map((m) => m.roleKey));
+    const isParent = roles.has('parent');
+    const isStudent = roles.has('student');
+    const isTeacher = roles.has('teacher') || roles.has('assistant_teacher');
+    const isAdmin =
+      principal.isPlatformAdmin ||
+      roles.has('school_owner') ||
+      roles.has('school_admin') ||
+      roles.has('principal') ||
+      roles.has('vice_principal') ||
+      roles.has('registrar') ||
+      roles.has('admissions_officer');
+
+    const effectiveSchoolId = query.schoolId ?? principal.activeSchoolId ?? undefined;
+    const effectiveCampusId = query.campusId ?? principal.activeCampusId ?? undefined;
+
     const where: Prisma.StudentWhereInput = {
-      ...this.tenantScope(organizationId, query.schoolId),
-      ...(query.campusId ? { campusId: query.campusId } : {}),
+      ...this.tenantScope(organizationId, effectiveSchoolId),
+      ...(effectiveCampusId ? { campusId: effectiveCampusId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.classId
         ? { enrollments: { some: { classId: query.classId, status: 'ACTIVE' } } }
@@ -101,6 +126,29 @@ export class StudentsService {
         : {}),
     };
 
+    // Role-specific scoping
+    if (isParent && !isAdmin) {
+      const guardian = await this.prisma.guardian.findUnique({
+        where: { userId: principal.userId },
+        select: { id: true },
+      });
+      if (!guardian) {
+        return paginate([], 0, query.page, query.pageSize);
+      }
+      where.guardians = { some: { guardianId: guardian.id } };
+    } else if (isStudent && !isAdmin) {
+      where.userId = principal.userId;
+    } else if (isTeacher && !isAdmin) {
+      const teacher = await this.prisma.teacher.findUnique({
+        where: { userId: principal.userId },
+        include: { assignments: true },
+      });
+      if (teacher && teacher.assignments.length > 0) {
+        const assignedClassIds = teacher.assignments.map((a) => a.classId);
+        where.enrollments = { some: { classId: { in: assignedClassIds }, status: 'ACTIVE' } };
+      }
+    }
+
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
 
     const [data, total] = await this.prisma.$transaction([
@@ -111,7 +159,10 @@ export class StudentsService {
     return paginate(data, total, query.page, query.pageSize);
   }
 
-  async findOne(organizationId: string, id: string) {
+  async findOne(principal: AuthPrincipal, id: string) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    await this.resourceAuth.assertCanAccessStudent(principal, id);
+
     const student = await this.prisma.student.findFirst({
       where: { id, ...this.tenantScope(organizationId) },
       include: {
@@ -126,14 +177,23 @@ export class StudentsService {
     return student;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateStudentDto) {
+  async update(principal: AuthPrincipal, id: string, dto: UpdateStudentDto) {
+    const organizationId = principal.activeOrganizationId ?? '';
+    await this.resourceAuth.assertCanAccessStudent(principal, id);
+
     const existing = await this.prisma.student.findFirst({
       where: { id, ...this.tenantScope(organizationId) },
-      select: { id: true },
+      select: { id: true, schoolId: true, campusId: true },
     });
     if (!existing) throw new NotFoundException('Student', id);
 
-    if (dto.schoolId) await this.assertSchoolInOrganization(dto.schoolId, organizationId);
+    if (dto.schoolId) {
+      await this.resourceAuth.assertSchoolScope(principal, dto.schoolId);
+      await this.assertSchoolInOrganization(dto.schoolId, organizationId);
+    }
+    if (dto.campusId) {
+      this.resourceAuth.assertCampusScope(principal, dto.campusId);
+    }
 
     return this.prisma.student.update({
       where: { id },

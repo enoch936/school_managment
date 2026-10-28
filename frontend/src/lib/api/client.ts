@@ -15,6 +15,9 @@ interface RequestOptions {
 
 let accessToken: string | null = null;
 let activeOrganizationId: string | null = null;
+let activeSchoolId: string | null = null;
+let activeCampusId: string | null = null;
+let activeAcademicYearId: string | null = null;
 let refreshHandler: (() => Promise<boolean>) | null = null;
 
 export function setAccessToken(token: string | null): void {
@@ -27,6 +30,18 @@ export function getAccessToken(): string | null {
 
 export function setActiveOrganizationId(orgId: string | null): void {
   activeOrganizationId = orgId;
+}
+
+export function setActiveSchoolId(schoolId: string | null): void {
+  activeSchoolId = schoolId;
+}
+
+export function setActiveCampusId(campusId: string | null): void {
+  activeCampusId = campusId;
+}
+
+export function setActiveAcademicYearId(yearId: string | null): void {
+  activeAcademicYearId = yearId;
 }
 
 export function setRefreshHandler(handler: () => Promise<boolean>): void {
@@ -53,6 +68,15 @@ async function rawRequest<T>(path: string, options: RequestOptions): Promise<Api
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (options.organizationId ?? activeOrganizationId) {
     headers['x-organization-id'] = (options.organizationId ?? activeOrganizationId) as string;
+  }
+  if (activeSchoolId) {
+    headers['x-school-id'] = activeSchoolId;
+  }
+  if (activeCampusId) {
+    headers['x-campus-id'] = activeCampusId;
+  }
+  if (activeAcademicYearId) {
+    headers['x-academic-year-id'] = activeAcademicYearId;
   }
 
   const response = await fetch(buildUrl(path, options.query), {

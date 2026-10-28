@@ -33,10 +33,10 @@ export class AssignmentsController {
   @RequirePermissions(PERMISSIONS.ASSIGNMENT_MANAGE)
   @Audit('assignment.create', 'Assignment')
   create(
-    @ActiveTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthPrincipal,
     @Body() dto: CreateAssignmentDto,
   ) {
-    return this.assignmentsService.create(tenant.organizationId, dto);
+    return this.assignmentsService.create(user, dto);
   }
 
   @Get()
@@ -71,11 +71,11 @@ export class AssignmentsController {
   @RequirePermissions(PERMISSIONS.ASSIGNMENT_READ)
   @Audit('assignment.submit', 'Submission')
   submit(
-    @ActiveTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthPrincipal,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: SubmitAssignmentDto,
   ) {
-    return this.assignmentsService.submit(tenant.organizationId, id, dto);
+    return this.assignmentsService.submit(user, id, dto);
   }
 
   @Get(':id/submissions')
@@ -91,18 +91,11 @@ export class AssignmentsController {
   @RequirePermissions(PERMISSIONS.ASSIGNMENT_MANAGE)
   @Audit('assignment.grade', 'Submission')
   grade(
-    @ActiveTenant() tenant: TenantContext,
     @CurrentUser() user: AuthPrincipal,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('submissionId', new ParseUUIDPipe()) submissionId: string,
     @Body() dto: GradeSubmissionDto,
   ) {
-    return this.assignmentsService.gradeSubmission(
-      tenant.organizationId,
-      id,
-      submissionId,
-      user.userId,
-      dto,
-    );
+    return this.assignmentsService.gradeSubmission(user, id, submissionId, dto);
   }
 }

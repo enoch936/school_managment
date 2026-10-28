@@ -210,4 +210,164 @@ export class ResourceAuthorizationService {
       }
     }
   }
+
+  /**
+   * Enforces teacher-class-subject assignment rules.
+   * Teachers and assistant teachers may only record attendance, create/grade assignments,
+   * or enter grades for classes and subjects explicitly assigned to them.
+   */
+  async assertTeacherAssignment(
+    principal: AuthPrincipal,
+    classId?: string | null,
+    subjectId?: string | null,
+    academicYearId?: string | null,
+  ): Promise<void> {
+    if (principal.isPlatformAdmin || !classId) return;
+
+    const roles = new Set(principal.memberships.map((m) => m.roleKey));
+    const adminRoles = [
+      'school_owner',
+      'school_admin',
+      'principal',
+      'vice_principal',
+      'academic_coordinator',
+      'department_head',
+      'exam_officer',
+      'registrar',
+    ];
+
+    if (adminRoles.some((r) => roles.has(r))) {
+      return; // Administrative oversight bypass
+    }
+
+    const isTeacher = roles.has('teacher') || roles.has('assistant_teacher');
+    if (!isTeacher) {
+      throw new ForbiddenException('You do not have teaching permissions for this academic resource');
+    }
+
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { userId: principal.userId },
+      select: { id: true },
+    });
+
+    if (!teacher) {
+      throw new ForbiddenException('Teacher profile not found for your user account');
+    }
+
+    const assignment = await this.prisma.teacherAssignment.findFirst({
+      where: {
+        teacherId: teacher.id,
+        classId,
+        ...(subjectId ? { subjectId } : {}),
+        ...(academicYearId ? { academicYearId } : {}),
+      },
+    });
+
+    if (!assignment) {
+      // Also check if teacher has class-wide assignment
+      const classWide = await this.prisma.teacherAssignment.findFirst({
+        where: { teacherId: teacher.id, classId },
+      });
+      if (!classWide) {
+        throw new ForbiddenException(
+          'Access denied: You are not assigned as a teacher for this class or subject',
+        );
+      }
+    }
+  }
+
+  /**
+   * Enforces academic-year boundaries.
+   * Modifications to attendance, grades, or curricular records in closed or historical
+   * academic years are forbidden unless explicitly authorized by elevated override permissions.
+   */
+  async assertAcademicYearMutable(
+    principal: AuthPrincipal,
+    yearIdOrDate: string | Date,
+    schoolId: string,
+  ): Promise<void> {
+    if (principal.isPlatformAdmin || principal.permissions.has('academics:override-closed-year')) {
+      return;
+    }
+
+    let year = null;
+    if (yearIdOrDate instanceof Date || (typeof yearIdOrDate === 'string' && yearIdOrDate.includes('-') && !yearIdOrDate.includes(' '))) {
+      const parsedDate = new Date(yearIdOrDate);
+      if (!isNaN(parsedDate.getTime()) && yearIdOrDate.toString().length < 30) {
+        year = await this.prisma.academicYear.findFirst({
+          where: {
+            schoolId,
+            startDate: { lte: parsedDate },
+            endDate: { gte: parsedDate },
+          },
+          select: { id: true, name: true, isCurrent: true, endDate: true },
+        });
+      }
+    }
+
+    if (!year && typeof yearIdOrDate === 'string') {
+      year = await this.prisma.academicYear.findFirst({
+        where: { id: yearIdOrDate, schoolId },
+        select: { id: true, name: true, isCurrent: true, endDate: true },
+      });
+    }
+
+    if (year) {
+      const now = new Date();
+      if (!year.isCurrent || year.endDate < now) {
+        throw new ForbiddenException(
+          `Academic-year boundary violation: Academic year "${year.name}" is closed or archived. Modifications require administrative override.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Enforces current record state immutability.
+   * State transitions govern what operations can be executed on published/closed/paid entities.
+   */
+  assertRecordStateMutable(
+    entityType: 'Exam' | 'Invoice' | 'Submission',
+    currentStatus: string,
+    action: string,
+    principal: AuthPrincipal,
+  ): void {
+    if (principal.isPlatformAdmin) return;
+
+    if (entityType === 'Exam') {
+      if (currentStatus === 'PUBLISHED' || currentStatus === 'CLOSED') {
+        const canManage =
+          principal.permissions.has('exam:manage') ||
+          principal.permissions.has('grade:publish') ||
+          principal.memberships.some(
+            (m) =>
+              m.roleKey === 'principal' ||
+              m.roleKey === 'vice_principal' ||
+              m.roleKey === 'school_admin' ||
+              m.roleKey === 'exam_officer',
+          );
+        if (!canManage) {
+          throw new ForbiddenException(
+            `Record state violation: This exam is ${currentStatus}. Modifying grades or exam data requires administrative unlock.`,
+          );
+        }
+      }
+    }
+
+    if (entityType === 'Invoice') {
+      if (currentStatus === 'PAID' || currentStatus === 'VOID') {
+        throw new ForbiddenException(
+          `Record state violation: Invoice is ${currentStatus} and cannot be altered.`,
+        );
+      }
+    }
+
+    if (entityType === 'Submission') {
+      if (currentStatus === 'GRADED' && action === 'submit') {
+        throw new ForbiddenException(
+          'Record state violation: This assignment submission has already been graded and cannot be resubmitted.',
+        );
+      }
+    }
+  }
 }

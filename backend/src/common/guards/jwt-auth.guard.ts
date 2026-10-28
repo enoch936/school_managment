@@ -54,9 +54,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return;
     }
     const orgHeader = req.header('x-organization-id');
+    const schoolHeader = req.header('x-school-id');
+    const campusHeader = req.header('x-campus-id');
+    const yearHeader = req.header('x-academic-year-id');
     const principal = await this.authorization.buildPrincipal(
       payload.sub,
       orgHeader ?? null,
+      schoolHeader ?? null,
+      campusHeader ?? null,
+      yearHeader ?? null,
       payload.sid ?? null,
     );
     req.user = principal;

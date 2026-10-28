@@ -19,6 +19,9 @@ export interface AuthPrincipal {
   activeOrganizationId: string | null;
   activeSchoolId: string | null;
   activeCampusId: string | null;
+  activeAcademicYearId: string | null;
+  activeAcademicYearStatus: 'ACTIVE' | 'UPCOMING' | 'CLOSED' | 'ARCHIVED' | null;
+  activeRoleKey: string | null;
   sessionId: string | null;
 }
 
