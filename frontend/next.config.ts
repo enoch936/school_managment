@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+    const apiUrl = process.env.API_UPSTREAM_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
     return [
       {
         source: '/api/proxy/:path*',

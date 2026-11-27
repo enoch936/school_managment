@@ -15,8 +15,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ---------------------------------------------------------------------------
@@ -831,6 +832,19 @@ model Student {
   status         StudentStatus @default(APPLICANT)
   medicalNotes   String?
   previousSchool String?
+  previousSchoolAddress String?
+  previousSchoolGrade   String?
+  nationalId     String?
+  birthCertificateNo String?
+  bloodGroup     String?
+  religion       String?
+  motherTongue   String?
+  emergencyContactRelation String?
+  emergencyContactSecondaryPhone String?
+  transferReason String?
+  withdrawalReason String?
+  withdrawalDate DateTime?     @db.Date
+  graduationDate DateTime?     @db.Date
   enrollmentDate DateTime?     @db.Date
   createdAt      DateTime      @default(now()) @db.Timestamptz(6)
   updatedAt      DateTime      @updatedAt @db.Timestamptz(6)

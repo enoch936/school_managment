@@ -12,9 +12,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { studentsApi } from '@/features/students/api';
+import { studentsApi, type StudentListItem } from '@/features/students/api';
 import { disciplineHealthApi } from '@/features/discipline-health/api';
-import type { School, Student } from '@/lib/api/domain';
+import type { School } from '@/lib/api/domain';
 import { useAuthStore } from '@/lib/auth/store';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Button } from '@/components/ui/button';
@@ -68,7 +68,7 @@ export default function DisciplineHealthPage() {
     queryFn: () => api.get<School[]>('/schools', { query: { pageSize: 50 } }),
   });
 
-  const students: Student[] = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data]);
+  const students: StudentListItem[] = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data]);
   const schools = useMemo(() => schoolsQuery.data ?? [], [schoolsQuery.data]);
 
   const activeStudentHealthQuery = useQuery({
@@ -397,7 +397,7 @@ function CreateDisciplineModal({
   onClose,
   onSuccess,
 }: {
-  students: Student[];
+  students: StudentListItem[];
   schools: School[];
   onClose: () => void;
   onSuccess: () => void;
@@ -523,7 +523,7 @@ function UpsertHealthModal({
   onClose,
   onSuccess,
 }: {
-  students: Student[];
+  students: StudentListItem[];
   schools: School[];
   selectedStudentId?: string;
   onClose: () => void;

@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: sms-backend
+    runtime: node
+    region: ohio
+    plan: free
+    buildCommand: npm install -g pnpm@11.21.0 && pnpm install --frozen-lockfile && pnpm --filter @sms/backend prisma:generate && pnpm --filter @sms/backend prisma:deploy && pnpm --filter @sms/backend build
+    startCommand: node backend/dist/main.js
+    healthCheckPath: /api/v1/monitoring/health
+    buildFilter:
+      paths:
+        - backend/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sms-cache
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: '*'
+      - key: COOKIE_SECURE
+        value: 'true'
+
+  - type: keyvalue
+    name: sms-cache
+    region: ohio
+    plan: free
+    ipAllowList: []

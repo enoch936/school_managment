@@ -21,7 +21,7 @@ export function useNotificationsSocket() {
       return;
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     // Remove /api/v1 suffix if present for the base socket connection
     const baseSocketUrl = apiUrl.replace(/\/api\/v1\/?$/, '');
 
