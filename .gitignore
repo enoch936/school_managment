@@ -54,3 +54,7 @@ desktop.ini
 .cache/
 .eslintcache
 .neon
+.vercel/
+
+.vercel
+.env*

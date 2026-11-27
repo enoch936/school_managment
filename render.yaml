@@ -31,7 +31,7 @@ services:
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: CORS_ORIGINS
-        value: '*'
+        value: https://school-management-weld-eight.vercel.app
       - key: COOKIE_SECURE
         value: 'true'
 
