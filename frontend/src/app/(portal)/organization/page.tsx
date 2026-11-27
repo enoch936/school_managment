@@ -94,7 +94,7 @@ export default function OrganizationPage() {
     queryFn: listSchools,
   });
 
-  const selectedSchoolId = activeSchoolId ?? schoolsData?.items[0]?.id;
+  const selectedSchoolId = activeSchoolId ?? schoolsData?.[0]?.id;
 
   const { data: schoolDetails, isLoading: isSchoolLoading } = useQuery({
     queryKey: ['school', selectedSchoolId],

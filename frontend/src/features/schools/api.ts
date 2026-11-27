@@ -159,7 +159,7 @@ export async function onboardSchool(input: SchoolOnboardingInput) {
 }
 
 export async function listSchools() {
-  return api.get<{ items: SchoolDetails[] }>('/schools');
+  return api.get<SchoolDetails[]>('/schools');
 }
 
 export async function getSchool(id: string) {
@@ -238,7 +238,7 @@ export const schoolsApi = {
   list: listSchools,
   listWithMeta: async () => {
     const res = await listSchools();
-    return { data: res.items, meta: { total: res.items?.length ?? 0 } };
+    return { data: res, meta: { total: res?.length ?? 0 } };
   },
   get: getSchool,
   create: (data: Parameters<typeof api.post>[1]) => api.post('/schools', data),
