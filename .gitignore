@@ -37,7 +37,7 @@ backend/prisma/migrations/dev.db*
 # Uploads / runtime storage
 uploads/
 tmp/
-storage/
+/storage/
 *.local
 
 # Editor / OS
